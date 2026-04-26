@@ -66,13 +66,13 @@ function drawPolyline(graphics: Graphics, points: Array<{ x: number; y: number }
 function terrainColors(tone: Battle["mapTone"]) {
   switch (tone) {
     case "island":
-      return { base: 0x183b4a, grid: 0x2c6575, contour: 0x60a2a5 };
+      return { base: 0xd7edf4, grid: 0x91b8c8, contour: 0x6f9cad };
     case "europe":
-      return { base: 0x273b2f, grid: 0x4d644e, contour: 0x8a9a70 };
+      return { base: 0xdfe8df, grid: 0x9caf9e, contour: 0x7b937f };
     case "coast":
-      return { base: 0x1f4140, grid: 0x4a7471, contour: 0x8fb8aa };
+      return { base: 0xd8ece8, grid: 0x89aaa3, contour: 0x6e938c };
     default:
-      return { base: 0x393724, grid: 0x625f3d, contour: 0x9c8d52 };
+      return { base: 0xe6dfd0, grid: 0xb6ad96, contour: 0x92876e };
   }
 }
 
@@ -112,26 +112,26 @@ function drawSandbox(
   for (const feature of battle.terrain) {
     if (feature.type === "river") {
       drawPolyline(terrainLayer, feature.points, width, height);
-      terrainLayer.stroke({ color: 0x6db7d9, width: 5, alpha: 0.8 });
+      terrainLayer.stroke({ color: 0x2997ff, width: 5, alpha: 0.68 });
     }
     if (feature.type === "ridge") {
       drawPolyline(terrainLayer, feature.points, width, height);
-      terrainLayer.stroke({ color: 0xc0a365, width: 7, alpha: 0.52 });
+      terrainLayer.stroke({ color: 0xa58f61, width: 7, alpha: 0.42 });
     }
     if (feature.type === "road") {
       drawPolyline(terrainLayer, feature.points, width, height);
-      terrainLayer.stroke({ color: 0xd3c083, width: 2, alpha: 0.5 });
+      terrainLayer.stroke({ color: 0x7f7868, width: 2, alpha: 0.42 });
     }
     if (feature.type === "coast") {
       terrainLayer
         .poly(feature.points.flatMap((point) => [pctX(point.x, width), pctY(point.y, height)]))
-        .fill({ color: 0xb4ad79, alpha: 0.92 });
+        .fill({ color: 0xf4ecd8, alpha: 0.86 });
     }
     if (feature.type === "city") {
       const point = feature.points[0];
       terrainLayer
         .roundRect(pctX(point.x, width) - 10, pctY(point.y, height) - 10, 20, 20, 3)
-        .fill({ color: 0xe8d8a6, alpha: 0.9 });
+        .fill({ color: 0xffffff, alpha: 0.9 });
     }
   }
   stage.addChild(terrainLayer);
@@ -142,12 +142,13 @@ function drawSandbox(
     const text = new Text({
       text: feature.label,
       style: new TextStyle({
-        fill: 0xe7e0c7,
+        fill: 0x1d1d1f,
         fontFamily: "system-ui, sans-serif",
-        fontSize: 12
+        fontSize: 12,
+        fontWeight: "600"
       })
     });
-    text.alpha = 0.72;
+    text.alpha = 0.62;
     text.position.set(pctX(anchor.x, width) + 10, pctY(anchor.y, height) - 18);
     stage.addChild(text);
   }
@@ -155,7 +156,7 @@ function drawSandbox(
   const frontLayer = new Graphics();
   for (const front of battle.fronts) {
     drawPolyline(frontLayer, front, width, height);
-    frontLayer.stroke({ color: 0xf2ead2, width: 2, alpha: 0.4 });
+    frontLayer.stroke({ color: 0x1d1d1f, width: 2, alpha: 0.32 });
   }
   stage.addChild(frontLayer);
 
@@ -170,7 +171,7 @@ function drawSandbox(
     const label = new Text({
       text: `${UNIT_SYMBOL[unit.kind]} ${unit.name}`,
       style: new TextStyle({
-        fill: 0xf9f6eb,
+        fill: 0x1d1d1f,
         fontFamily: "system-ui, sans-serif",
         fontSize: 12,
         fontWeight: "600"
@@ -180,7 +181,7 @@ function drawSandbox(
     body
       .roundRect(-15, -15, 30, 30, 6)
       .fill({ color: meta.color })
-      .stroke({ color: 0xfaf7ea, width: 2, alpha: 0.72 });
+      .stroke({ color: 0xffffff, width: 2, alpha: 0.86 });
     body.circle(0, 0, 5).fill({ color: 0x111111, alpha: 0.25 });
     label.position.set(18, -10);
     group.addChild(trail, body, label);
@@ -320,6 +321,23 @@ export default function BattleSandbox({ battle, onBack }: BattleSandboxProps) {
     animateTo(target);
   };
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== "Space") return;
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      const isTyping =
+        target?.isContentEditable || tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT";
+
+      if (isTyping) return;
+      event.preventDefault();
+      togglePlayback();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [playing, battle.duration]);
+
   const jumpBy = (delta: number) => {
     const next = Math.min(battle.duration, Math.max(0, stateRef.current.time + delta));
     animateTo(next, false);
@@ -337,61 +355,85 @@ export default function BattleSandbox({ battle, onBack }: BattleSandboxProps) {
     if (appRef.current) updateUnits(appRef.current, value, spritesRef.current);
   };
 
+  const toolbarButtonClass =
+    "grid size-10 cursor-pointer place-items-center rounded-full border border-black/8 bg-white/70 text-[#5f6368] shadow-[0_6px_18px_rgba(0,0,0,0.05)] backdrop-blur-md hover:border-black/16 hover:bg-white/95 hover:text-[#1d1d1f]";
+
   return (
-    <main className="sandbox-shell">
-      <section className="command-panel" aria-label="战役控制台">
-        <button className="back-button" aria-label="返回战役列表" onClick={onBack}>
+    <main className="grid min-h-screen grid-cols-[minmax(320px,400px)_minmax(0,1fr)] bg-linear-to-b from-[#fbfbfd] to-[#f5f5f7] max-[900px]:grid-cols-1">
+      <section
+        className="flex min-w-0 flex-col gap-7 border-r border-black/8 bg-white/72 p-[38px] shadow-[16px_0_50px_rgba(0,0,0,0.04)] backdrop-blur-2xl backdrop-saturate-150 max-[900px]:border-r-0 max-[900px]:border-b max-[900px]:p-6 max-[560px]:p-[18px]"
+        aria-label="战役控制台"
+      >
+        <button
+          className="inline-flex min-h-9 w-fit cursor-pointer items-center gap-2 border-0 bg-transparent p-0 font-semibold text-[#5f6368] hover:text-[#1d1d1f]"
+          aria-label="返回战役列表"
+          onClick={onBack}
+        >
           <ArrowLeft size={18} />
           <span>战役列表</span>
         </button>
 
         <div className="title-block">
-          <p>
+          <p className="m-0 text-[13px] font-semibold text-[#86868b]">
             {battle.era} · {battle.year}
           </p>
-          <h1>{battle.name}</h1>
-          <span>{battle.location}</span>
+          <h1 className="my-3 text-[clamp(38px,5vw,60px)] leading-none font-bold tracking-normal text-[#1d1d1f]">{battle.name}</h1>
+          <span className="m-0 text-[13px] font-semibold text-[#86868b]">{battle.location}</span>
         </div>
 
-        <div className="briefing">{battle.briefing}</div>
+        <div className="text-[15px] leading-[1.85] text-[#5f6368]">{battle.briefing}</div>
 
-        <div className="event-board">
-          <span className="event-time">T+{Math.round(progress)}</span>
-          <h2>{currentEvent.title}</h2>
-          <p>{currentEvent.detail}</p>
+        <div className="rounded-lg border border-black/8 bg-white/54 p-[22px] shadow-[inset_0_1px_rgba(255,255,255,0.75)]">
+          <span className="text-[13px] font-bold text-[#0071e3]">T+{Math.round(progress)}</span>
+          <h2 className="my-2.5 text-[23px] font-bold tracking-normal text-[#1d1d1f]">{currentEvent.title}</h2>
+          <p className="m-0 leading-[1.75] text-[#5f6368]">{currentEvent.detail}</p>
         </div>
 
-        <div className="force-list">
+        <div className="mt-auto grid gap-3.5">
           {battle.units.map((unit) => (
-            <div className="force-row" key={unit.id}>
-              <span className="force-dot" style={{ backgroundColor: sideMeta[unit.side].css }} />
-              <span>{unit.name}</span>
-              <meter min={0} max={100} value={unit.strength} />
+            <div
+              className="grid grid-cols-[10px_minmax(0,1fr)_80px] items-center gap-3 text-[13px] text-[#1d1d1f] max-[560px]:grid-cols-[10px_minmax(0,1fr)]"
+              key={unit.id}
+            >
+              <span className="size-2 rounded-full" style={{ backgroundColor: sideMeta[unit.side].css }} />
+              <span className="overflow-hidden text-ellipsis whitespace-nowrap">{unit.name}</span>
+              <meter className="h-1.5 w-20 accent-[#0071e3] max-[560px]:col-start-2 max-[560px]:w-full" min={0} max={100} value={unit.strength} />
             </div>
           ))}
         </div>
       </section>
 
-      <section className="map-panel" aria-label="沙盘地图">
-        <div className="map-toolbar">
-          <button aria-label="后退" onClick={() => jumpBy(-12)}>
+      <section
+        className="relative grid min-w-0 grid-rows-[auto_minmax(420px,1fr)_auto] gap-6 p-[38px] max-[900px]:min-h-[560px] max-[900px]:p-6 max-[560px]:p-[18px]"
+        aria-label="沙盘地图"
+      >
+        <div className="flex min-h-12 items-center gap-2.5">
+          <button className={toolbarButtonClass} aria-label="后退" onClick={() => jumpBy(-12)}>
             <SkipBack size={18} />
           </button>
-          <button className="primary-control" aria-label={playing ? "暂停" : "播放"} onClick={togglePlayback}>
+          <button
+            className="grid size-12 cursor-pointer place-items-center rounded-full border border-[#0071e3] bg-[#0071e3] text-white"
+            aria-label={playing ? "暂停" : "播放"}
+            onClick={togglePlayback}
+          >
             {playing ? <Pause size={20} /> : <Play size={20} />}
           </button>
-          <button aria-label="前进" onClick={() => jumpBy(12)}>
+          <button className={toolbarButtonClass} aria-label="前进" onClick={() => jumpBy(12)}>
             <SkipForward size={18} />
           </button>
-          <button aria-label="重置" onClick={reset}>
+          <button className={toolbarButtonClass} aria-label="重置" onClick={reset}>
             <RotateCcw size={18} />
           </button>
         </div>
 
-        <div className="canvas-frame" ref={canvasHostRef} />
+        <div
+          className="relative min-h-[440px] overflow-hidden rounded-lg border border-black/16 bg-[#e7ece7] shadow-[0_22px_60px_rgba(0,0,0,0.08)] max-[560px]:min-h-[360px] [&_canvas]:block [&_canvas]:size-full"
+          ref={canvasHostRef}
+        />
 
-        <div className="timeline-strip">
+        <div className="relative min-h-[54px] pt-2.5 pb-5">
           <input
+            className="w-full accent-[#0071e3]"
             aria-label="战役时间轴"
             type="range"
             min={0}
@@ -399,11 +441,13 @@ export default function BattleSandbox({ battle, onBack }: BattleSandboxProps) {
             value={progress}
             onChange={(event) => scrub(Number(event.target.value))}
           />
-          <div className="phase-markers">
+          <div className="absolute inset-x-0 top-9 h-3.5">
             {battle.events.map((event) => (
               <button
                 key={event.title}
-                className={event.t <= progress ? "active" : ""}
+                className={`absolute size-2.5 -translate-x-1/2 cursor-pointer rounded-full border p-0 shadow-[0_3px_10px_rgba(0,0,0,0.08)] ${
+                  event.t <= progress ? "border-[#0071e3] bg-[#0071e3]" : "border-[#86868b] bg-white"
+                }`}
                 style={{ left: `${event.t}%` }}
                 onClick={() => animateTo(event.t, false)}
                 aria-label={event.title}
