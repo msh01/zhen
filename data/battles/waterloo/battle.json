@@ -1,0 +1,36 @@
+{
+  "id": "waterloo",
+  "name": "滑铁卢战役",
+  "era": "近代欧洲",
+  "year": "1815年",
+  "location": "比利时滑铁卢",
+  "mapTone": "europe",
+  "duration": 100,
+  "coverFocus": "援军",
+  "briefing": "法军反复冲击英荷联军阵地，普军从东侧抵达后改变兵力天平。",
+  "fronts": [
+    [
+      { "x": 18, "y": 57 },
+      { "x": 43, "y": 51 },
+      { "x": 72, "y": 54 }
+    ]
+  ],
+  "terrain": [
+    { "type": "ridge", "label": "蒙圣让岭", "points": [{ "x": 19, "y": 36 }, { "x": 43, "y": 32 }, { "x": 72, "y": 35 }] },
+    { "type": "road", "label": "布鲁塞尔大道", "points": [{ "x": 49, "y": 91 }, { "x": 50, "y": 67 }, { "x": 49, "y": 39 }, { "x": 47, "y": 12 }] },
+    { "type": "city", "label": "乌古蒙", "points": [{ "x": 32, "y": 47 }] },
+    { "type": "city", "label": "拉海圣", "points": [{ "x": 50, "y": 50 }] }
+  ],
+  "units": [
+    { "id": "french-center", "name": "法军中央", "side": "red", "kind": "infantry", "strength": 82, "path": [{ "x": 50, "y": 78, "t": 0 }, { "x": 50, "y": 66, "t": 25 }, { "x": 49, "y": 57, "t": 55 }, { "x": 47, "y": 52, "t": 100 }] },
+    { "id": "french-cav", "name": "法军骑兵", "side": "gold", "kind": "cavalry", "strength": 64, "path": [{ "x": 62, "y": 74, "t": 0 }, { "x": 59, "y": 62, "t": 38 }, { "x": 57, "y": 48, "t": 66 }, { "x": 54, "y": 44, "t": 100 }] },
+    { "id": "allied-line", "name": "威灵顿阵线", "side": "blue", "kind": "infantry", "strength": 79, "path": [{ "x": 45, "y": 33, "t": 0 }, { "x": 45, "y": 36, "t": 45 }, { "x": 46, "y": 39, "t": 75 }, { "x": 48, "y": 40, "t": 100 }] },
+    { "id": "prussian", "name": "普军援军", "side": "green", "kind": "infantry", "strength": 71, "path": [{ "x": 92, "y": 49, "t": 0 }, { "x": 82, "y": 48, "t": 42 }, { "x": 70, "y": 50, "t": 72 }, { "x": 61, "y": 54, "t": 100 }] }
+  ],
+  "events": [
+    { "t": 0, "title": "雨后布阵", "detail": "双方在泥泞地面展开，英荷联军占据岭线。" },
+    { "t": 30, "title": "法军攻击", "detail": "法军向中央和农庄据点连续施压。" },
+    { "t": 62, "title": "骑兵冲击", "detail": "法军骑兵大规模冲锋，但难以突破方阵。" },
+    { "t": 86, "title": "普军抵达", "detail": "东侧普军投入战场，法军侧翼压力骤增。" }
+  ]
+}
