@@ -2,22 +2,21 @@
 
 一个用于模拟古今中外知名战役的开源沙盘动画项目。
 
-项目基于 **Next.js + GSAP + PixiJS** 构建：Next.js 负责应用结构，PixiJS 负责沙盘画面渲染，GSAP 负责时间轴和单位运动动画控制。当前版本提供了战役卡片列表、战役详情沙盘、时间轴播放、阶段跳转和基础战役数据目录规范。
+项目基于 **Next.js + SVG + GSAP** 构建：Next.js 负责应用结构，SVG 负责清晰呈现地图、路线、单位和阶段标注，GSAP 负责时间轴播放、暂停、跳转和速度控制。当前版本提供了战役卡片列表、战役详情沙盘、时间轴播放、阶段跳转、速度控制和基础战役数据目录规范。
 
 ## Features
 
 - 瀑布流战役卡片首页
 - 每个战役独立目录管理
 - 基于 JSON 的战役动画定义
-- PixiJS 渲染地图、地形、单位、行军轨迹和战线
-- GSAP 驱动时间轴播放、暂停、跳转和拖动
+- SVG 渲染地图、地形、单位、行军轨迹、战线和战术标注
+- GSAP 驱动时间轴播放、暂停、跳转、拖动和速度控制
 - 响应式界面，支持桌面和移动端浏览
 
 ## Tech Stack
 
 - [Next.js](https://nextjs.org/)
 - [React](https://react.dev/)
-- [PixiJS](https://pixijs.com/)
 - [GSAP](https://gsap.com/)
 - [TypeScript](https://www.typescriptlang.org/)
 - [lucide-react](https://lucide.dev/)
