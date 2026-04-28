@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { ArrowLeft, Pause, Play, RotateCcw, SkipBack, SkipForward } from "lucide-react";
-import { Battle, BattleUnit, sideMeta } from "@/data/battles";
+import { Battle, BattleUnit } from "@/data/battles";
 
 type BattleSandboxProps = {
   battle: Battle;
@@ -30,6 +30,40 @@ const UNIT_SYMBOL: Record<BattleUnit["kind"], string> = {
   naval: "舰",
   air: "空"
 };
+
+const TERRAIN_LABEL_OFFSETS: Record<string, { x: number; y: number; anchor?: "start" | "middle" | "end" }> = {
+  丹水山地: { x: 24, y: -18, anchor: "middle" },
+  韩王山: { x: 16, y: -20, anchor: "middle" },
+  丹水: { x: 10, y: -18, anchor: "middle" },
+  赵军粮道: { x: 28, y: -18, anchor: "start" },
+  秦军隐蔽迂回线: { x: -34, y: -20, anchor: "end" },
+  南侧穿插线: { x: 20, y: 20, anchor: "start" },
+  长平: { x: 26, y: -14, anchor: "start" },
+  故关: { x: 18, y: -14, anchor: "start" },
+  秦垒: { x: 22, y: -18, anchor: "start" },
+  赵垒: { x: -22, y: -18, anchor: "end" }
+};
+
+const UNIT_LABEL_OFFSETS: Record<string, { x: number; y: number; anchor?: "start" | "end" }> = {
+  "qin-center": { x: 26, y: -16, anchor: "start" },
+  "qin-feint": { x: 28, y: 2, anchor: "start" },
+  "qin-north-wing": { x: 26, y: 2, anchor: "start" },
+  "qin-south-wing": { x: 28, y: 6, anchor: "start" },
+  "qin-blockade": { x: 26, y: 2, anchor: "start" },
+  "zhao-vanguard": { x: -28, y: -12, anchor: "end" },
+  "zhao-main": { x: -28, y: 4, anchor: "end" },
+  "zhao-camp": { x: -28, y: 18, anchor: "end" },
+  "zhao-supply": { x: -28, y: 2, anchor: "end" }
+};
+
+const CHANGPING_LABEL_SETS = [
+  { until: 18, ids: ["qin-center", "qin-north-wing", "qin-south-wing", "zhao-main"] },
+  { until: 38, ids: ["qin-feint", "zhao-vanguard", "zhao-main"] },
+  { until: 58, ids: ["qin-center", "qin-feint", "zhao-main"] },
+  { until: 72, ids: ["qin-north-wing", "qin-south-wing", "zhao-main"] },
+  { until: 88, ids: ["qin-blockade", "zhao-supply", "zhao-main"] },
+  { until: Number.POSITIVE_INFINITY, ids: ["qin-center", "qin-blockade", "zhao-main"] }
+];
 
 function sx(x: number) {
   return (x / 100) * VIEWBOX_WIDTH;
@@ -58,15 +92,12 @@ function interpolatePath(unit: BattleUnit, time: number) {
   if (time <= first.t) return first;
   if (time >= last.t) return last;
 
-  const nextIndex = path.findIndex((point) => point.t >= time);
-  const previous = path[nextIndex - 1];
-  const next = path[nextIndex];
-  const span = next.t - previous.t || 1;
-  const mix = gsap.parseEase("power1.inOut")((time - previous.t) / span);
+  const span = last.t - first.t || 1;
+  const mix = gsap.parseEase("power1.inOut")((time - first.t) / span);
 
   return {
-    x: previous.x + (next.x - previous.x) * mix,
-    y: previous.y + (next.y - previous.y) * mix,
+    x: first.x + (last.x - first.x) * mix,
+    y: first.y,
     t: time
   };
 }
@@ -107,6 +138,32 @@ function terrainAnchor(points: Point[]) {
   return points[Math.floor(points.length / 2)] ?? points[0];
 }
 
+function labelWidth(label: string, fontSize = 13) {
+  return label.length * fontSize + 16;
+}
+
+function unitLabelIds(battle: Battle, time: number) {
+  if (battle.id !== "changping") {
+    return new Set(battle.units.map((unit) => unit.id));
+  }
+
+  const labelSet = CHANGPING_LABEL_SETS.find((set) => time < set.until) ?? CHANGPING_LABEL_SETS[0];
+  return new Set(labelSet.ids);
+}
+
+function unitFill(unit: BattleUnit) {
+  if (unit.side === "blue") return "#1f66d8";
+  if (unit.side === "red") return "#c71926";
+  if (unit.side === "gold") return "#d59b1f";
+  return "#17834a";
+}
+
+function unitLabel(unit: BattleUnit) {
+  const side = unit.name.includes("秦") ? "秦军" : unit.name.includes("赵") ? "赵军" : "";
+  const shortName = mapUnitName(unit.name).replace(/^秦/, "").replace(/^赵/, "");
+  return `${side}${UNIT_SYMBOL[unit.kind]} ${shortName}`.trim();
+}
+
 function eventWindow(battle: Battle, time: number) {
   const index = Math.max(0, battle.events.findLastIndex((event) => event.t <= time));
   const current = battle.events[index] ?? battle.events[0];
@@ -122,8 +179,7 @@ function eventWindow(battle: Battle, time: number) {
 
 function trailPoints(unit: BattleUnit, time: number) {
   const current = interpolatePath(unit, time);
-  const travelled = unit.path.filter((point) => point.t <= time);
-  return travelled.length ? [...travelled, current] : [unit.path[0], current];
+  return [unit.path[0], current];
 }
 
 function Arrow({
@@ -150,20 +206,8 @@ function Arrow({
 
   return (
     <g opacity={opacity}>
-      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={7} strokeLinecap="round" />
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={5} strokeLinecap="round" />
       <polygon points={`${p1} ${p2} ${p3}`} fill={color} />
-    </g>
-  );
-}
-
-function Badge({ label, x, y, color, opacity }: { label: string; x: number; y: number; color: string; opacity: number }) {
-  const width = label.length * 14 + 24;
-  return (
-    <g transform={`translate(${sx(x)} ${sy(y)})`} opacity={opacity}>
-      <rect x={-10} y={-20} width={width} height={32} rx={7} fill={color} />
-      <text x={2} y={2} fill="#fff" fontSize={16} fontWeight={700}>
-        {label}
-      </text>
     </g>
   );
 }
@@ -184,8 +228,8 @@ function ChangpingDynamics({ time }: { time: number }) {
         ry={sy(5 + encircle * 8)}
         fill="none"
         stroke="#f06b57"
-        strokeWidth={2 + encircle * 7}
-        opacity={encircle * 0.45 * pulse}
+        strokeWidth={2 + encircle * 5}
+        opacity={encircle * 0.32 * pulse}
       />
       <ellipse
         cx={sx(55)}
@@ -193,7 +237,7 @@ function ChangpingDynamics({ time }: { time: number }) {
         rx={sx(9 + encircle * 6)}
         ry={sy(7 + encircle * 4)}
         fill="#f06b57"
-        opacity={encircle * 0.08}
+        opacity={encircle * 0.05}
       />
 
       <line
@@ -202,42 +246,28 @@ function ChangpingDynamics({ time }: { time: number }) {
         x2={sx(53)}
         y2={sy(53)}
         stroke="#2d8f57"
-        strokeWidth={6}
+        strokeWidth={4}
         strokeLinecap="round"
         strokeDasharray="18 18"
-        opacity={Math.max(0.18, 0.78 - cutSupply * 0.72)}
+        opacity={0.18 - cutSupply * 0.1}
       />
       <g opacity={cutSupply}>
         <line x1={sx(61) - 16} y1={sy(62) - 16} x2={sx(61) + 16} y2={sy(62) + 16} stroke="#c02828" strokeWidth={8} strokeLinecap="round" />
         <line x1={sx(61) + 16} y1={sy(62) - 16} x2={sx(61) - 16} y2={sy(62) + 16} stroke="#c02828" strokeWidth={8} strokeLinecap="round" />
       </g>
 
-      <Arrow from={{ x: 32, y: 42 }} to={{ x: 47, y: 48 }} color="#f06b57" opacity={0.18 + lure * 0.48} />
-      <Arrow from={{ x: 42, y: 25 }} to={{ x: 66, y: 42 }} color="#e3b341" opacity={0.18 + wing * 0.58} />
-      <Arrow from={{ x: 39, y: 71 }} to={{ x: 66, y: 55 }} color="#e3b341" opacity={0.18 + wing * 0.58} />
-      <Arrow from={{ x: 75, y: 48 }} to={{ x: 55, y: 50 }} color="#5fb4ff" opacity={0.22 + lure * 0.44} />
-
-      {lure > 0.04 && <Badge label="诱敌出垒" x={44} y={38} color="#f06b57" opacity={lure} />}
-      {wing > 0.04 && <Badge label="侧后穿插" x={66} y={37} color="#e3b341" opacity={wing} />}
-      {cutSupply > 0.04 && <Badge label="粮道切断" x={62} y={65} color="#c02828" opacity={cutSupply} />}
-      {encircle > 0.04 && <Badge label="包围压缩" x={47} y={58} color="#f06b57" opacity={encircle} />}
+      <Arrow from={{ x: 32, y: 42 }} to={{ x: 47, y: 48 }} color="#f06b57" opacity={lure * 0.52} />
+      <Arrow from={{ x: 42, y: 25 }} to={{ x: 66, y: 42 }} color="#e3b341" opacity={wing * 0.54} />
+      <Arrow from={{ x: 39, y: 71 }} to={{ x: 66, y: 55 }} color="#e3b341" opacity={wing * 0.54} />
+      <Arrow from={{ x: 75, y: 48 }} to={{ x: 55, y: 50 }} color="#5fb4ff" opacity={lure * 0.42} />
     </g>
   );
 }
 
 function BattleMap({ battle, time }: { battle: Battle; time: number }) {
-  const colors = terrainColors(battle.mapTone);
   const chapter = eventWindow(battle, time);
-  const gridColumns = Array.from({ length: 13 }, (_, index) => (index / 12) * VIEWBOX_WIDTH);
-  const gridRows = Array.from({ length: 9 }, (_, index) => (index / 8) * VIEWBOX_HEIGHT);
-  const contours = Array.from({ length: 11 }, (_, index) => {
-    const y = VIEWBOX_HEIGHT * (0.12 + index * 0.075);
-    const points = Array.from({ length: 29 }, (_, xIndex) => {
-      const x = VIEWBOX_WIDTH * 0.05 + xIndex * ((VIEWBOX_WIDTH * 0.9) / 28);
-      return `${x},${y + Math.sin(x * 0.017 + index * 0.8) * 9}`;
-    });
-    return `M ${points.join(" L ")}`;
-  });
+  const visibleLabels = unitLabelIds(battle, time);
+  const activeUnits = battle.units.filter((unit) => time >= unit.path[0].t - 1);
 
   return (
     <svg
@@ -247,140 +277,87 @@ function BattleMap({ battle, time }: { battle: Battle; time: number }) {
       aria-label={`${battle.name} SVG 沙盘动画`}
       preserveAspectRatio="xMidYMid meet"
     >
-      <rect width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill={colors.base} />
-      <rect width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill="#fff" opacity={0.14} />
-      <rect width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill="none" stroke="#675d48" strokeWidth={2} opacity={0.22} />
+      <rect width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} rx={28} fill="#f4faf6" />
+      <rect width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} rx={28} fill="#fff" opacity={0.22} />
+      <line x1={VIEWBOX_WIDTH / 2} y1={0} x2={VIEWBOX_WIDTH / 2} y2={VIEWBOX_HEIGHT} stroke="#aeb9b4" strokeWidth={2} strokeDasharray="14 22" opacity={0.36} />
 
-      <g opacity={0.22}>
-        {gridColumns.map((x) => (
-          <line key={`x-${x}`} x1={x} y1={0} x2={x} y2={VIEWBOX_HEIGHT} stroke={colors.grid} strokeWidth={1} />
-        ))}
-        {gridRows.map((y) => (
-          <line key={`y-${y}`} x1={0} y1={y} x2={VIEWBOX_WIDTH} y2={y} stroke={colors.grid} strokeWidth={1} />
-        ))}
+      <text x={VIEWBOX_WIDTH * 0.64} y={VIEWBOX_HEIGHT * 0.36} fill="#fff" fontSize={28} fontWeight={700} letterSpacing={2} opacity={0.78}>
+        {battle.coverFocus.toUpperCase()}
+      </text>
+
+      <g aria-label="事件日志" transform="translate(50 42)">
+        <rect width={500} height={54} rx={10} fill="#555a58" opacity={0.9} />
+        <text x={24} y={35} fill="#fff" fontSize={20} fontWeight={800}>
+          事件日志: {chapter.current.title}
+        </text>
       </g>
 
-      <g opacity={0.16}>
-        {contours.map((d, index) => (
-          <path key={index} d={d} fill="none" stroke={colors.contour} strokeWidth={1.5} />
-        ))}
+      <g aria-label="当前状态" transform="translate(750 52)">
+        <text x={0} y={0} fill="#1d1d1f" fontSize={13} fontWeight={700}>
+          当前时间
+        </text>
+        <text x={0} y={31} fill="#1d1d1f" fontSize={20} fontWeight={800}>
+          T+{Math.round(time)}
+        </text>
+        <text x={100} y={0} fill="#1d1d1f" fontSize={13} fontWeight={700}>
+          战场状态
+        </text>
+        <text x={100} y={31} fill="#1d1d1f" fontSize={20} fontWeight={800}>
+          {chapter.next ? "推演中" : "已完成"}
+        </text>
       </g>
 
-      <g aria-label="地形">
-        {battle.terrain.map((feature, index) => {
-          if (feature.type === "river") {
-            return (
-              <g key={index}>
-                <path d={pathD(feature.points)} fill="none" stroke="#247ec2" strokeWidth={10} strokeLinecap="round" strokeLinejoin="round" opacity={0.62} />
-                <path d={pathD(feature.points)} fill="none" stroke="#dff4ff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" opacity={0.55} />
-              </g>
-            );
-          }
-
-          if (feature.type === "ridge") {
-            return (
-              <g key={index}>
-                <path d={pathD(feature.points)} fill="none" stroke="#8b7448" strokeWidth={13} strokeLinecap="round" strokeLinejoin="round" opacity={0.3} />
-                <path d={pathD(feature.points)} fill="none" stroke="#5b4b30" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" opacity={0.22} />
-              </g>
-            );
-          }
-
-          if (feature.type === "road") {
-            return <path key={index} d={pathD(feature.points)} fill="none" stroke="#6e6353" strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" opacity={0.42} />;
-          }
-
-          if (feature.type === "coast") {
-            return <polygon key={index} points={polygonPoints(feature.points)} fill="#f4ecd8" opacity={0.86} />;
-          }
-
-          const point = feature.points[0];
-          return <rect key={index} x={sx(point.x) - 13} y={sy(point.y) - 13} width={26} height={26} rx={4} fill="#fff" stroke="#5d5547" opacity={0.9} />;
-        })}
-      </g>
-
-      <g aria-label="地名">
-        {battle.terrain.map((feature, index) => {
-          if (!feature.label) return null;
-          const anchor = terrainAnchor(feature.points);
-          return (
-            <text key={index} x={sx(anchor.x) + 12} y={sy(anchor.y) - 14} fill="#1d1d1f" fontSize={16} fontWeight={700} opacity={0.68}>
-              {feature.label}
-            </text>
-          );
-        })}
-      </g>
-
-      <g aria-label="战线" opacity={0.24}>
-        {battle.fronts.map((front, index) => (
-          <path key={index} d={pathD(front)} fill="none" stroke="#1d1d1f" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
-        ))}
-      </g>
-
-      {battle.id === "changping" && <ChangpingDynamics time={time} />}
-
-      <g aria-label="部队轨迹">
-        {battle.units.map((unit) => {
-          const visible = time + 14 >= unit.path[0].t;
+      <g aria-label="移动轨迹">
+        {activeUnits.map((unit) => {
           const points = trailPoints(unit, time);
           return (
             <path
               key={unit.id}
               d={pathD(points)}
               fill="none"
-              stroke={sideMeta[unit.side].css}
-              strokeWidth={5}
+              stroke={unitFill(unit)}
+              strokeWidth={4}
               strokeLinecap="round"
               strokeLinejoin="round"
-              opacity={visible ? 0.5 : 0.12}
+              opacity={visibleLabels.has(unit.id) ? 0.28 : 0.12}
             />
           );
         })}
       </g>
 
       <g aria-label="部队">
-        {battle.units.map((unit) => {
+        {activeUnits.map((unit) => {
           const position = interpolatePath(unit, time);
-          const visible = time + 14 >= unit.path[0].t;
-          const size = 30 + unit.strength * 0.18;
-          const label = `${UNIT_SYMBOL[unit.kind]} ${mapUnitName(unit.name)}`;
-          const labelToLeft = position.x > 58 || unit.side === "blue";
-          const labelX = labelToLeft ? -size / 2 - 8 : size / 2 + 8;
-          const textAnchor = labelToLeft ? "end" : "start";
+          const showLabel = visibleLabels.has(unit.id);
+          const color = unitFill(unit);
+          const label = unitLabel(unit);
+          const x = sx(position.x);
+          const y = sy(position.y);
+          const size = showLabel ? 48 : 32;
+          const labelW = labelWidth(label, 12) + 10;
 
           return (
-            <g key={unit.id} transform={`translate(${sx(position.x)} ${sy(position.y)})`} opacity={visible ? 1 : 0.12}>
-              <rect x={-size / 2} y={-size / 2} width={size} height={size} rx={8} fill={sideMeta[unit.side].css} stroke="#fff" strokeWidth={4} />
-              <circle r={7} fill="#111" opacity={0.25} />
-              <text
-                className="hidden min-[520px]:block"
-                x={labelX}
-                y={5}
-                fill="#1d1d1f"
-                fontSize={15}
-                fontWeight={700}
-                textAnchor={textAnchor}
-                paintOrder="stroke"
-                stroke="#f7f3e9"
-                strokeWidth={4}
-              >
-                {label}
+            <g key={unit.id} transform={`translate(${x} ${y})`} opacity={showLabel ? 1 : 0.42}>
+              <rect x={-size * 0.62} y={-size / 2 - 16} width={size * 1.24} height={7} rx={1} fill="#0d6f37" />
+              {unit.side === "blue" || unit.side === "gold" ? (
+                <rect x={-size / 2} y={-size / 2} width={size} height={size} rx={3} fill={color} />
+              ) : (
+                <circle r={size / 2} fill={color} />
+              )}
+              <text x={0} y={6} fill="#fff" fontSize={showLabel ? 25 : 17} fontWeight={800} textAnchor="middle">
+                {UNIT_SYMBOL[unit.kind]}
               </text>
+              {showLabel && (
+                <>
+                  <rect x={-labelW / 2} y={size / 2 + 8} width={labelW} height={30} rx={15} fill="#fff" stroke="#1d1d1f" strokeWidth={1.8} />
+                  <text x={0} y={size / 2 + 28} fill="#1d1d1f" fontSize={12} fontWeight={800} textAnchor="middle">
+                    {label}
+                  </text>
+                </>
+              )}
             </g>
           );
         })}
-      </g>
-
-      <g aria-label="当前阶段" transform="translate(34 42)">
-        <rect width={250} height={68} rx={10} fill="#fffaf0" opacity={0.88} stroke="#1d1d1f" strokeOpacity={0.08} />
-        <text x={18} y={28} fill="#0071e3" fontSize={16} fontWeight={800}>
-          T+{Math.round(time)}
-        </text>
-        <text x={18} y={54} fill="#1d1d1f" fontSize={22} fontWeight={800}>
-          {chapter.current.title}
-        </text>
-        <rect x={148} y={23} width={78} height={5} rx={3} fill="#d6d0c0" opacity={0.8} />
-        <rect x={148} y={23} width={78 * chapter.progress} height={5} rx={3} fill="#0071e3" />
       </g>
     </svg>
   );
@@ -582,7 +559,7 @@ export default function BattleSandbox({ battle, onBack }: BattleSandboxProps) {
                 className="grid grid-cols-[10px_minmax(0,1fr)_80px] items-center gap-3 text-[13px] text-[#1d1d1f] max-[560px]:grid-cols-[10px_minmax(0,1fr)]"
                 key={unit.id}
               >
-                <span className="size-2 rounded-full" style={{ backgroundColor: sideMeta[unit.side].css }} />
+                <span className="size-2 rounded-full" style={{ backgroundColor: unitFill(unit) }} />
                 <span className="overflow-hidden text-ellipsis whitespace-nowrap">{unit.name}</span>
                 <meter className="h-1.5 w-20 accent-[#0071e3] max-[560px]:col-start-2 max-[560px]:w-full" min={0} max={100} value={unit.strength} />
               </div>
@@ -592,7 +569,7 @@ export default function BattleSandbox({ battle, onBack }: BattleSandboxProps) {
       </section>
 
       <section
-        className="relative grid min-w-0 grid-rows-[auto_auto_minmax(300px,1fr)_auto] gap-5 p-[38px] max-[900px]:order-1 max-[900px]:min-h-[560px] max-[900px]:p-6 max-[560px]:min-h-0 max-[560px]:grid-rows-[auto_auto_auto_auto] max-[560px]:gap-4 max-[560px]:p-[18px]"
+        className="relative flex min-w-0 flex-col items-center gap-4 px-[clamp(18px,3vw,40px)] py-8 max-[900px]:order-1 max-[900px]:min-h-[560px] max-[900px]:p-6 max-[560px]:min-h-0 max-[560px]:gap-4 max-[560px]:p-[18px]"
         aria-label="沙盘地图"
       >
         <div className="hidden max-[900px]:block">
@@ -602,7 +579,7 @@ export default function BattleSandbox({ battle, onBack }: BattleSandboxProps) {
           <h1 className="mt-2 mb-1 text-[34px] leading-none font-bold tracking-normal text-[#1d1d1f]">{battle.name}</h1>
           <span className="text-[12px] font-semibold text-[#86868b]">{battle.location}</span>
         </div>
-        <div className="flex min-h-12 items-center gap-2.5">
+        <div className="flex min-h-12 w-full max-w-[1280px] items-center gap-2.5">
           <button className={`${toolbarButtonClass} hidden max-[900px]:grid`} aria-label="返回战役列表" title="战役列表" onClick={onBack}>
             <ArrowLeft size={18} />
           </button>
@@ -625,11 +602,11 @@ export default function BattleSandbox({ battle, onBack }: BattleSandboxProps) {
           </button>
         </div>
 
-        <div className="relative aspect-[10/7] min-h-[320px] overflow-hidden rounded-lg border border-black/16 bg-[#e7ece7] shadow-[0_22px_60px_rgba(0,0,0,0.08)] max-[560px]:min-h-0">
+        <div className="relative aspect-[10/7] w-full max-w-[1280px] overflow-hidden rounded-lg border border-black/12 bg-[#f4faf6] shadow-[0_18px_46px_rgba(0,0,0,0.07)]">
           <BattleMap battle={battle} time={progress} />
         </div>
 
-        <div className="relative min-h-[88px] pt-2.5 pb-5">
+        <div className="relative min-h-[88px] w-full max-w-[1280px] pt-2.5 pb-5">
           <input
             className="w-full accent-[#0071e3]"
             aria-label="战役时间轴"
